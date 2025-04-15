@@ -19,6 +19,8 @@ from pyspark.sql.types import *
 from pyspark.sql.functions import * 
 from pyspark.ml.evaluation import RegressionEvaluator 
 import time
+import pandas as pd
+from pyspark.ml.feature import MinMaxScaler
 
 # COMMAND ----------
 
@@ -131,11 +133,35 @@ cols = [
 # Split the data in DataFrame, df2,  into training and testing sets using random sampling
 
 splits = df.randomSplit([0.7,0.3]) 
-train = splits[0] # assigns the first element of the splits array to the variable. set the training  set
-test = splits[1] # assigns the second element of the splits array to the variable. set the testing  set
+train = splits[0] # assigns the first element of the splits array to the variable. set the training set
+test = splits[1] # assigns the second element of the splits array to the variable. set the testing set
 train_rows = train.count()
 test_rows = test.count() 
 print("Training Rows:", train_rows, "Testing Rows:", test_rows) 
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Feature Importance
+
+# COMMAND ----------
+
+assembler = VectorAssembler(inputCols = cols, outputCol = "features")
+
+minMax = MinMaxScaler(inputCol = assembler.getOutputCol(), outputCol = "normFeatures")
+
+rf_FI = RandomForestRegressor(labelCol = "totalFare", featuresCol = "normFeatures")
+
+pipeline_FI = Pipeline(stages=[assembler, minMax, rf_FI])
+
+model = pipeline_FI.fit(train)
+
+model_FI = model.stages[-1]
+
+featureImp = pd.DataFrame(list(zip(assembler.getInputCols(),
+                                   model_FI.featureImportances)),
+                          columns=["normFeatures", "importance"])
+featureImp.sort_values(by="importance", ascending=False)
 
 # COMMAND ----------
 
